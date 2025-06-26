@@ -1,0 +1,112 @@
+{
+  "home_page": [
+    {
+      "display_message": "แนะนำแพ็คเกจยอดนิยม",
+      "actual_prompt": "Please use the retrieval tool with mode GET_PACKAGE_METADATA, search_keyword 'โปรแกรมตรวจสุขภาพ', and select the most relevant category_tag from the available categories that matches health checkup services, preferred_area '<UNKNOWN>', radius '<UNKNOWN>', package_url '<UNKNOWN>', and reasoning 'Finding popular health checkup packages for homepage recommendations' to show me the most popular health packages available"
+    },
+    {
+      "display_message": "ตรวจสุขภาพทั่วไป",
+      "actual_prompt": "Please use the retrieval tool with mode GET_PACKAGE_METADATA, search_keyword 'ตรวจสุขภาพทั่วไป', and select the most appropriate category_tag from available categories that matches general health screening, preferred_area '<UNKNOWN>', radius '<UNKNOWN>', package_url '<UNKNOWN>', and reasoning 'Finding general health checkup packages for users interested in basic health screening' to recommend comprehensive health screening packages"
+    },
+    {
+      "display_message": "วัคซีนป้องกันโรค",
+      "actual_prompt": "Please use the retrieval tool with mode GET_PACKAGE_METADATA, search_keyword 'วัคซีน', and select the most relevant category_tag from available vaccine categories like HPV vaccine or influenza vaccine, preferred_area '<UNKNOWN>', radius '<UNKNOWN>', package_url '<UNKNOWN>', and reasoning 'Finding vaccine packages for disease prevention' to show available vaccine options for disease prevention"
+    },
+    {
+      "display_message": "บริการทันตกรรม",
+      "actual_prompt": "Please use the retrieval tool with mode GET_PACKAGE_METADATA, search_keyword 'ทันตกรรม', and select appropriate category_tag from dental-related categories like dental filling, teeth whitening, or retainer services, preferred_area '<UNKNOWN>', radius '<UNKNOWN>', package_url '<UNKNOWN>', and reasoning 'Finding dental care packages for general dental services' to recommend dental care services and treatments"
+    },
+    {
+      "display_message": "ดูแลความงาม",
+      "actual_prompt": "Please use the retrieval tool with mode GET_PACKAGE_METADATA, search_keyword 'ความงาม', and select relevant category_tag from beauty/aesthetic categories like acne treatment, laser treatments, or skin care services, preferred_area '<UNKNOWN>', radius '<UNKNOWN>', package_url '<UNKNOWN>', and reasoning 'Finding beauty and aesthetic treatment packages' to show beauty and aesthetic treatment options available"
+    }
+  ],
+  "category_page": [
+    {
+      "display_message": "แพ็คเกจแนะนำในหมวดนี้",
+      "actual_prompt": "Please use the sql_search tool to find recommended packages in this category. Filter by the current page's category and show packages sorted by popularity or relevance, with reasoning 'Finding top recommended packages for this specific category using structured search'"
+    },
+    {
+      "display_message": "เปรียบเทียบราคา",
+      "actual_prompt": "Please use the sql_search tool to compare prices of packages in this category. Filter by current category and sort by price to help users compare options, with reasoning 'Comparing prices of packages within this category using structured search for better price analysis'"
+    },
+    {
+      "display_message": "ใกล้ฉันที่สุด",
+      "actual_prompt": "I'm looking for packages in this category near my location. Please ask me for my preferred area first, then use the sql_search tool to filter by both the current category and my location to find nearby options, with reasoning 'Finding packages in this category near user location using location-based filtering'"
+    },
+    {
+      "display_message": "ราคาถูกที่สุด",
+      "actual_prompt": "Please use the sql_search tool to find the most affordable packages in this category. Filter by current category and sort by price from lowest to highest, with reasoning 'Finding the most cost-effective packages in this category using price-based filtering'"
+    },
+    {
+      "display_message": "รายละเอียดเพิ่มเติม",
+      "actual_prompt": "Please use the sql_search tool to get packages in this category, then use the retrieval tool with mode PROVIDE_PACKAGE_INFO to show detailed information, FAQ, and important details about packages in this category, with reasoning 'Providing comprehensive information about packages in this category'"
+    }
+  ],
+  "brand_page": [
+    {
+      "display_message": "แพ็คเกจยอดนิยม",
+      "actual_prompt": "Please use the sql_search tool to find the most popular packages from this hospital/brand. Filter by the current brand name and sort by popularity or relevance, with reasoning 'Finding popular packages from this specific hospital/brand using structured brand filtering'"
+    },
+    {
+      "display_message": "ดูทุกสาขา",
+      "actual_prompt": "Please use the sql_search tool to get packages from this brand, then use the retrieval tool with mode PROVIDE_PACKAGE_INFO to show all branch locations and detailed information about each branch. Filter by brand name and reasoning 'Showing all branch locations for this hospital/brand'"
+    },
+    {
+      "display_message": "เช็คอินด่วน",
+      "actual_prompt": "I want to know about walk-in services at this hospital. Please use the sql_search tool to find packages from this brand, then provide information about urgent queue acceptance and walk-in policies based on the clinic_specific_rules in your system prompt"
+    },
+    {
+      "display_message": "นัดหมายแพทย์",
+      "actual_prompt": "I want to book an appointment with a doctor at this hospital. Please use the sql_search tool to find packages from this brand, then provide booking information and ask for my full name, phone number, and preferred date and time for handover_to_bk"
+    },
+    {
+      "display_message": "ราคาพิเศษ",
+      "actual_prompt": "Please use the sql_search tool to find special pricing and exclusive packages from this hospital/brand. Filter by brand name and look for discounted or promotional packages, with reasoning 'Finding special pricing and exclusive deals from this brand using structured search'"
+    }
+  ],
+  "highlight_page": [
+    {
+      "display_message": "รายละเอียดโปรโมชั่น",
+      "actual_prompt": "Please use the retrieval tool with mode GET_PACKAGE_METADATA to get packages in this highlight campaign, then use mode PROVIDE_PACKAGE_INFO to show detailed promotion information, terms and conditions, and pricing. Use the highlight category as category_tag and reasoning 'Getting detailed information about this highlight promotion'"
+    },
+    {
+      "display_message": "เปรียบเทียบราคา",
+      "actual_prompt": "Please use the retrieval tool with mode GET_PACKAGE_METADATA to compare prices between different providers for this highlight campaign. Use the current highlight category as category_tag, search_keyword from highlight name, and reasoning 'Comparing prices across different providers for this highlight campaign'"
+    },
+    {
+      "display_message": "จองเลย",
+      "actual_prompt": "I want to purchase from this highlight promotion. Please use the retrieval tool with mode GET_PACKAGE_METADATA to show available packages in this highlight, then use the cart tool with action 'create_cart' to create a shopping cart for me so I can add packages and proceed with purchase"
+    },
+    {
+      "display_message": "เงื่อนไขโปรโมชั่น",
+      "actual_prompt": "Please use the retrieval tool with mode GET_PACKAGE_METADATA to get packages from this highlight, then use mode PROVIDE_PACKAGE_INFO to show detailed terms and conditions, age restrictions, and important information about this promotion campaign"
+    },
+    {
+      "display_message": "สาขาที่เปิดบริการ",
+      "actual_prompt": "Please use the retrieval tool with mode GET_PACKAGE_METADATA for this highlight category, then use mode PROVIDE_PACKAGE_INFO to show all available branches and locations that participate in this highlight promotion campaign"
+    }
+  ],
+  "profile_page": [
+    {
+      "display_message": "แนะนำตามความสนใจ",
+      "actual_prompt": "Based on my profile and previous interests, please use the retrieval tool with mode GET_PACKAGE_METADATA to recommend personalized packages that might interest me. Use '<UNKNOWN>' for category_tag to get broader recommendations and reasoning 'Providing personalized package recommendations based on user profile and interests'"
+    },
+    {
+      "display_message": "ตรวจดูคำสั่งซื้อ",
+      "actual_prompt": "I want to check my purchase history and current orders. Please use the cart tool with action 'view_cart' and ask me for my cart_id to show my current cart items, or help me check my order status and purchase history"
+    },
+    {
+      "display_message": "นัดหมายใหม่",
+      "actual_prompt": "I want to make a new appointment booking. Please ask me which package I've purchased or am interested in, then use the retrieval tool to check if it can be booked through HDmall, and collect my full name, phone number, and preferred date/time for handover_to_bk"
+    },
+    {
+      "display_message": "เปลี่ยนแปลงนัดหมาย",
+      "actual_prompt": "I need to reschedule my existing appointment. Please ask me for my full name, phone number, and new preferred date/time, then use handover_to_bk tool to transfer me to the booking team for rescheduling assistance"
+    },
+    {
+      "display_message": "ติดต่อเจ้าหนี้",
+      "actual_prompt": "I need to contact customer service for assistance. Please use the handover_to_cx tool to connect me with a customer service agent who can help with my account, technical issues, or any other concerns I might have"
+    }
+  ]
+} 

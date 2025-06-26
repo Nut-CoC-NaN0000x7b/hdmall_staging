@@ -1,0 +1,12 @@
+<thread_name>
+{{thread_name}}
+</thread_name>
+
+<conversation>
+{{messages}}
+</conversation>
+
+<instruction>
+- Please read the thread_name and conversation carefully and think step by step in their perspective on what package should be recommended to user based on their problems.
+- ALWAYS use extraction tool for this task.
+</instruction>
