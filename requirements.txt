@@ -102,6 +102,7 @@ opentelemetry-instrumentation-dbapi==0.46b0
 opentelemetry-instrumentation-django==0.46b0
 opentelemetry-instrumentation-fastapi==0.46b0
 opentelemetry-instrumentation-flask==0.46b0
+opentelemetry-instrumentation-logging==0.46b0
 opentelemetry-instrumentation-psycopg2==0.46b0
 opentelemetry-instrumentation-requests==0.46b0
 opentelemetry-instrumentation-sqlalchemy==0.46b0

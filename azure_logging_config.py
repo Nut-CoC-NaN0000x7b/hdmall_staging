@@ -174,32 +174,34 @@ def setup_azure_logging(
     # Azure Application Insights integration
     if enable_azure_monitor:
         try:
+            # Direct Application Insights integration
             from azure.monitor.opentelemetry import configure_azure_monitor
-            from opentelemetry import trace
             from opentelemetry.instrumentation.logging import LoggingInstrumentor
+            from opentelemetry.instrumentation.requests import RequestsInstrumentor
+            from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
             
-            # Configure Azure Monitor
+            # Configure Azure Monitor with minimal settings
             configure_azure_monitor(
-                connection_string=os.getenv('APPLICATIONINSIGHTS_CONNECTION_STRING'),
-                resource_attributes={
-                    "service.name": app_name,
-                    "service.version": os.getenv('APP_VERSION', '1.0.0'),
-                    "deployment.environment": os.getenv('ENVIRONMENT', 'production'),
-                }
+                connection_string=os.getenv('APPLICATIONINSIGHTS_CONNECTION_STRING')
             )
             
-            # Enable logging instrumentation
-            LoggingInstrumentor().instrument(set_logging_format=True)
+            # Instrument logging to send to Application Insights
+            LoggingInstrumentor().instrument(set_logging_format=False)
             
-            # Get tracer for custom spans
-            tracer = trace.get_tracer(__name__)
+            # Instrument HTTP requests
+            RequestsInstrumentor().instrument()
+            
+            # Send a test telemetry to verify connection
+            test_logger = logging.getLogger("azure_test")
+            test_logger.info("🧪 Azure Application Insights test message - if you see this in App Insights, integration is working!")
             
             root_logger.info("✅ Azure Application Insights integration enabled")
             
-        except ImportError:
-            root_logger.warning("⚠️ Azure Monitor packages not available - skipping Application Insights integration")
+        except ImportError as e:
+            root_logger.warning(f"⚠️ Azure Monitor packages not available: {e}")
         except Exception as e:
             root_logger.error(f"❌ Failed to configure Azure Monitor: {e}")
+            # Continue without Application Insights but keep console logging
     
     # Configure specific loggers
     configure_component_loggers(root_logger.level)
