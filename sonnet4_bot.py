@@ -81,7 +81,7 @@ class CentralizedTools:
             tools.extend([
                 self._get_handover_cx_tool(),
                 self._get_handover_bk_tool(),
-                #self._get_handover_asap_tool(),  # Uncomment if needed
+                self._get_handover_asap_tool(),  # Emergency handover for sensitive packages
             ])
             log_business_hours_status(logger, current_hour, True)
             logger.info(f"🔧 [TOOLS-AVAILABLE] {len(tools)} tools loaded: {[t['name'] for t in tools]}")
