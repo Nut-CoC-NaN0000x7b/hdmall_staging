@@ -1087,4 +1087,8 @@ class Global:
 }
 
 
+# Create global storage instance
 global_storage = Global()
+
+# Note: Data loading is handled by __init__.py lifespan function
+# Use: python3 -m uvicorn __init__:create_app to launch with proper data loading

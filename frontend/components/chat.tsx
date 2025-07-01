@@ -1,662 +1,519 @@
 'use client'
-import { useState, ChangeEvent, useRef } from 'react';
+import { useState } from 'react';
 import axios from 'axios';
 
 interface Message {
-  sender: 'User' | 'Jib AI';
+  sender: 'User' | 'AI';
   text: string;
-  type?: 'text' | 'image_url' | 'image_file';
-  fileName?: string;
-  images?: string[]; // For bot response images
+  timestamp: string;
+  images?: string[];
+  recommendedPrompts?: string[];
+  recommendedUrls?: Array<{
+    url: string;
+    type: string;
+    branch_locations?: Array<{
+      branch_name: string;
+      coordinates: [number, number];
+      address: string;
+      map_url: string;
+    }>;
+  }>;
+  rawResponse?: any;
 }
 
-interface LocalImageFile {
-  file: File;
-  base64Data: string;
-  mediaType: string;
-  preview: string;
+interface Service {
+  id: string;
+  name: string;
+  endpoint: string;
+  description: string;
+  emoji: string;
 }
 
-// Function to determine if a string is a valid URL
-const isValidURL = (str: string): boolean => {
-  try {
-    new URL(str);
-    return true;
-  } catch {
-    return false;
+const services: Service[] = [
+  {
+    id: 'jib_ai',
+    name: 'JibAI (Sonnet 4)',
+    endpoint: '/jib_ai/chat',
+    description: 'Main health package assistant with RAG',
+    emoji: '🧠'
+  },
+  {
+    id: 'dr_jib',
+    name: 'Dr Jib (Medical)',
+    endpoint: '/dr_jib/chat',
+    description: 'Medical chatbot specialist',
+    emoji: '👨‍⚕️'
+  },
+  {
+    id: 'web_agent',
+    name: 'Web Agent (Intelligence)',
+    endpoint: '/web_agent/chat',
+    description: 'Web intelligence and package search',
+    emoji: '🕸️'
+  },
+  {
+    id: 'co_pilot',
+    name: 'Co-pilot (Assistant)',
+    endpoint: '/co_pilot/',
+    description: 'General assistant and co-pilot',
+    emoji: '🤖'
+  },
+  {
+    id: 'summarization',
+    name: 'Summarization (Slack)',
+    endpoint: '/summarization/slack',
+    description: 'URL summarization service',
+    emoji: '📝'
   }
-};
-
-// Function to extract multiple URLs from textarea
-const extractImageURLs = (input: string): string[] => {
-  return input
-    .split('\n')
-    .map(line => line.trim())
-    .filter(line => line && isValidURL(line))
-    .filter(url => {
-      // Allow all image URLs, don't filter out hdmall.co.th
-      return url.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?.*)?$/i) || 
-             url.includes('image') || 
-             url.includes('img') ||
-             !url.startsWith('https://hdmall.co.th/'); // Keep non-hdmall URLs
-    });
-};
-
-// Function to convert file to base64 and detect media type
-const convertFileToBase64 = (file: File): Promise<LocalImageFile> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64String = reader.result as string;
-      const base64Data = base64String.split(',')[1]; // Remove data:image/type;base64, prefix
-      const mediaType = file.type || 'image/jpeg'; // Default to jpeg if type not detected
-      
-      resolve({
-        file,
-        base64Data,
-        mediaType,
-        preview: base64String // Keep full data URL for preview
-      });
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-};
+];
 
 const Chat: React.FC = () => {
-  const [imageUrls, setImageUrls] = useState<string>('');
+  const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [textQuery, setTextQuery] = useState<string>('');
   const [messages, setMessages] = useState<Message[]>([]);
-  const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
-  const [localImages, setLocalImages] = useState<LocalImageFile[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  // Update image previews when URLs change
-  const handleImageUrlsChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value;
-    setImageUrls(value);
-    
-    // Extract valid image URLs for preview
-    const validUrls = extractImageURLs(value);
-    setImagePreviewUrls(validUrls);
+  const handleServiceSelect = (service: Service) => {
+    setSelectedService(service);
+    setMessages([]);
+    setTextQuery('');
   };
 
-  // Handle local file selection
-  const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    const imageFiles = files.filter(file => file.type.startsWith('image/'));
-    
-    try {
-      const processedFiles = await Promise.all(
-        imageFiles.map(file => convertFileToBase64(file))
-      );
-      setLocalImages(prev => [...prev, ...processedFiles]);
-    } catch (error) {
-      console.error('Error processing files:', error);
-    }
+  const goBackToMenu = () => {
+    setSelectedService(null);
+    setMessages([]);
+    setTextQuery('');
   };
 
-  // Remove local image
-  const removeLocalImage = (index: number) => {
-    setLocalImages(prev => prev.filter((_, i) => i !== index));
-  };
-
-  // Clear all local images
-  const clearLocalImages = () => {
-    setLocalImages([]);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
-  // Function to handle sending the message to your LLM endpoint
-  const sendMessage = async () => {
-    const validImageUrls = extractImageURLs(imageUrls);
-    const query = textQuery.trim();
+  const formatMessageForAPI = (text: string, service: Service) => {
+    const timestamp = Date.now().toString();
     
-    if (!query && validImageUrls.length === 0 && localImages.length === 0) return;
-
-    const userMessages: any[] = [];
-
-    // Add URL-based image messages
-    validImageUrls.forEach(url => {
-      userMessages.push({
-        sender: 'User',
-        text: url,
-        type: 'image_url',
-      });
-    });
-
-    // Add local file-based image messages
-    localImages.forEach(localImage => {
-      userMessages.push({
-        sender: 'User',
-        text: localImage.preview, // Use preview for display
-        type: 'image_file',
-        fileName: localImage.file.name,
-      });
-    });
-    
-    // Add text message if present
-    if (query) {
-      userMessages.push({
-        sender: 'User',
-        text: query,
-        type: 'text',
-      });
-    }
-
-    // Update the messages state with the user's message(s)
-    setMessages((prev) => [...prev, ...userMessages]);
-
-    // Prepare the complete payload including all previous messages
-    const payload = {
+    switch (service.id) {
+      case 'jib_ai':
+      case 'dr_jib':
+      case 'web_agent':
+        return {
       messages: [
-        ...messages.map((msg) => ({
+            ...messages.map(msg => ({
           role: msg.sender === 'User' ? 'user' : 'assistant',
-          content: msg.type === 'image_url'
-            ? [
-                {
-                  type: 'image',
-                  source: {
-                    type: 'url',
-                    url: msg.text,
-                  },
-                },
-              ]
-            : msg.type === 'image_file'
-            ? [
-                {
-                  type: 'image',
-                  source: {
-                    type: 'base64',
-                    media_type: 'image/jpeg', // We'll need to store this properly
-                    data: msg.text.split(',')[1], // Extract base64 data
-                  },
-                },
-              ]
-            : [
-                {
-                  type: 'text',
-                  text: msg.text,
-                },
-              ],
-        })),
-        ...userMessages.map((msg) => {
-          if (msg.type === 'image_url') {
-            return {
+              content: msg.text
+            })),
+            {
               role: 'user',
-              content: [
-                {
-                  type: 'image',
-                  source: {
-                    type: 'url',
-                    url: msg.text,
-                    // Explicitly only include url for URL type
-                  },
-                },
-              ],
-            };
-          } else if (msg.type === 'image_file') {
-            // Find the corresponding local image for proper media type
-            const localImage = localImages.find(img => img.file.name === msg.fileName);
+              content: text
+            }
+          ],
+          room_id: "123456"
+        };
+      
+      case 'co_pilot':
             return {
+          messages: [
+            ...messages.map(msg => ({
+              role: msg.sender === 'User' ? 'user' : 'assistant',
+              content: msg.text
+            })),
+            {
               role: 'user',
-              content: [
-                {
-                  type: 'image',
-                  source: {
-                    type: 'base64',
-                    media_type: localImage?.mediaType || 'image/jpeg',
-                    data: localImage?.base64Data || '',
-                    // Explicitly only include required fields for base64 type
-                  },
-                },
-              ],
-            };
-          } else {
+              content: text
+            }
+          ]
+        };
+      
+      case 'summarization':
             return {
-              role: 'user',
-              content: [
-                {
-                  type: 'text',
-                  text: msg.text,
-                },
-              ],
-            };
+          event: {
+            type: 'app_mention',
+            text: text,
+            user: 'test_user',
+            channel: 'test_channel',
+            ts: timestamp
           }
-        }),
-      ],
+        };
+      
+      default:
+        return { message: text };
+    }
+  };
+
+  const parseServiceResponse = (responseData: any, service: Service): { text: string; images?: string[]; recommendedPrompts?: string[]; recommendedUrls?: any[]; rawResponse?: any } => {
+    switch (service.id) {
+      case 'web_agent':
+        // Web agent returns: {response, recommended_prompts_for_users, recommended_urls}
+        return {
+          text: responseData.response || 'No response received',
+          recommendedPrompts: responseData.recommended_prompts_for_users || [],
+          recommendedUrls: responseData.recommended_urls || [],
+          rawResponse: responseData
+        };
+      
+      case 'jib_ai':
+      case 'dr_jib':
+        // JibAI/Dr Jib returns: {text, image} or just string
+        if (typeof responseData === 'string') {
+          return { text: responseData };
+        }
+        return {
+          text: responseData.text || responseData || 'No response received',
+          images: responseData.image || [],
+          rawResponse: responseData
+        };
+      
+      case 'co_pilot':
+        // Co-pilot returns: {response}
+        return {
+          text: responseData.response || responseData || 'No response received',
+          rawResponse: responseData
+        };
+      
+      case 'summarization':
+        // Summarization returns: {message}
+        return {
+          text: responseData.message || 'Processing complete!',
+          rawResponse: responseData
+        };
+      
+      default:
+        // Fallback for unknown services
+        if (typeof responseData === 'string') {
+          return { text: responseData };
+        } else if (responseData.text) {
+          return { text: responseData.text, rawResponse: responseData };
+        } else if (responseData.response) {
+          return { text: responseData.response, rawResponse: responseData };
+        } else {
+          return { text: JSON.stringify(responseData, null, 2), rawResponse: responseData };
+        }
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!textQuery.trim() || !selectedService || isLoading) return;
+
+    const userMessage: Message = {
+      sender: 'User',
+      text: textQuery,
+      timestamp: new Date().toLocaleTimeString()
     };
 
+    setMessages(prev => [...prev, userMessage]);
+    setIsLoading(true);
+
     try {
-      const response = await axios.post('http://127.0.0.1:8000/chat', payload);
-      const llmResponse = response.data;
-
-      // Handle the new response format: {"text": "...", "image": ["url1", "url2", ...]}
-      console.log('🔍 Raw LLM Response:', llmResponse);
-      let botMessage: Message;
+      const payload = formatMessageForAPI(textQuery, selectedService);
+      const response = await axios.post(`http://127.0.0.1:8000${selectedService.endpoint}`, payload);
       
-      if (typeof llmResponse === 'object' && llmResponse.text) {
-        // New structured response format
-        console.log('✅ Using structured response format');
-        console.log('📝 Text:', llmResponse.text.substring(0, 100) + '...');
-        console.log('🖼️ Images:', llmResponse.image);
-        
-        botMessage = {
-          sender: 'Jib AI',
-          text: llmResponse.text,
-          type: 'text',
-          images: llmResponse.image && llmResponse.image.length > 0 ? llmResponse.image : undefined
-        };
-      } else {
-        // Fallback for plain text response
-        console.log('⚠️ Using fallback text response format');
-        botMessage = {
-          sender: 'Jib AI',
-          text: typeof llmResponse === 'string' ? llmResponse : JSON.stringify(llmResponse),
-          type: 'text'
-        };
-      }
+      // Parse response based on service type
+      const parsedResponse = parseServiceResponse(response.data, selectedService);
       
-      console.log('💬 Final bot message:', botMessage);
+      const botMessage: Message = {
+        sender: 'AI',
+        text: parsedResponse.text,
+        timestamp: new Date().toLocaleTimeString(),
+        images: parsedResponse.images,
+        recommendedPrompts: parsedResponse.recommendedPrompts,
+        recommendedUrls: parsedResponse.recommendedUrls,
+        rawResponse: parsedResponse.rawResponse
+      };
 
-      // Add the LLM's response to the conversation
-      setMessages((prev) => [...prev, botMessage]);
-
-      // Clear the input fields
-      setImageUrls('');
+      setMessages(prev => [...prev, botMessage]);
       setTextQuery('');
-      setImagePreviewUrls([]);
-      setLocalImages([]);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
     } catch (error) {
       console.error('Error sending message', error);
+      const errorMessage: Message = {
+        sender: 'AI',
+        text: `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`,
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Handle key down event for text query
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !isLoading) {
       sendMessage();
-      e.preventDefault();
     }
   };
 
-  const totalImages = imagePreviewUrls.length + localImages.length;
+  const handleRecommendedPromptClick = async (prompt: string) => {
+    if (isLoading) return;
+    
+    setTextQuery(prompt);
+    
+    // Auto-send the recommended prompt
+    const userMessage: Message = {
+      sender: 'User',
+      text: prompt,
+      timestamp: new Date().toLocaleTimeString()
+    };
 
+    setMessages(prev => [...prev, userMessage]);
+    setIsLoading(true);
+
+    try {
+      const payload = formatMessageForAPI(prompt, selectedService!);
+      const response = await axios.post(`http://127.0.0.1:8000${selectedService!.endpoint}`, payload);
+      
+      const parsedResponse = parseServiceResponse(response.data, selectedService!);
+      
+      const botMessage: Message = {
+        sender: 'AI',
+        text: parsedResponse.text,
+        timestamp: new Date().toLocaleTimeString(),
+        images: parsedResponse.images,
+        recommendedPrompts: parsedResponse.recommendedPrompts,
+        recommendedUrls: parsedResponse.recommendedUrls,
+        rawResponse: parsedResponse.rawResponse
+      };
+
+      setMessages(prev => [...prev, botMessage]);
+      setTextQuery('');
+    } catch (error) {
+      console.error('Error sending recommended prompt', error);
+      const errorMessage: Message = {
+        sender: 'AI',
+        text: `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`,
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Service Selection Screen
+  if (!selectedService) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold text-gray-800 mb-2">🧠 Jib's Brain Testing Hub</h1>
+            <p className="text-lg text-gray-600">Select an AI service to test</p>
+          </div>
+          
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {services.map((service) => (
+              <div
+                key={service.id}
+                onClick={() => handleServiceSelect(service)}
+                className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:scale-105 p-6 border-2 border-transparent hover:border-blue-200"
+              >
+                <div className="text-center">
+                  <div className="text-4xl mb-4">{service.emoji}</div>
+                  <h3 className="text-xl font-semibold text-gray-800 mb-2">{service.name}</h3>
+                  <p className="text-gray-600 text-sm mb-4">{service.description}</p>
+                  <div className="bg-gray-100 rounded-lg px-3 py-1 text-xs text-gray-500 font-mono">
+                    {service.endpoint}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          <div className="mt-8 text-center">
+            <div className="bg-white rounded-lg shadow-md p-4 inline-block">
+              <p className="text-sm text-gray-600">
+                💡 <strong>Tip:</strong> Each service has different capabilities and response formats
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Chat Interface Screen
   return (
-    <div className="flex flex-col justify-between items-center min-h-screen bg-white">
-      <div className='font-bold p-4 bg-white w-full fixed top-0 text-center border-b-black border-b-2 flex justify-between items-center'>
-        <div></div>
-        <div>HDmall Jib AI - Vision Testing</div>
+    <div className="flex flex-col h-screen bg-white">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 shadow-lg">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={goBackToMenu}
+            className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg transition-colors"
+          >
+            <span>←</span>
+            <span>Back to Menu</span>
+          </button>
+          
+          <div className="text-center">
+            <h1 className="text-xl font-bold">
+              {selectedService.emoji} {selectedService.name}
+            </h1>
+            <p className="text-sm opacity-90">{selectedService.description}</p>
+            <p className="text-xs opacity-75 mt-1">
+              {selectedService.id === 'web_agent' && '💡 Recommendations & 🔗 Links'}
+              {selectedService.id === 'jib_ai' && '📸 Images & 📝 Text'}
+              {selectedService.id === 'dr_jib' && '🏥 Medical & 📸 Images'}
+              {selectedService.id === 'co_pilot' && '🤖 Assistant & 💬 Chat'}
+              {selectedService.id === 'summarization' && '📝 Summaries & 📊 Analysis'}
+            </p>
+          </div>
+          
         <button 
           onClick={() => setMessages([])}
-          style={styles.clearChatButton}
-          title="Clear chat history"
+            className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg transition-colors"
         >
           🗑️ Clear
         </button>
       </div>
-      
-      <div className='flex-1 w-full h-max overflow-y-auto p-4 border-1 border-black bg-white mb-4 mt-16' style={styles.chatBox}>
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+        {messages.length === 0 && (
+          <div className="text-center text-gray-500 mt-8">
+            <div className="text-6xl mb-4">{selectedService.emoji}</div>
+            <p>Start a conversation with {selectedService.name}</p>
+            <p className="text-sm mt-2">Try asking something relevant to this service!</p>
+          </div>
+        )}
+        
         {messages.map((msg, idx) => (
-          <div key={idx} style={msg.sender === 'User' ? styles.userMessage : styles.llmMessage}>
-            {msg.type === 'image_url' ? (
-              <>
-                <strong>{msg.sender}:</strong> <br />
-                <img src={msg.text} alt="User uploaded" style={styles.image} />
-              </>
-            ) : msg.type === 'image_file' ? (
-              <>
-                <strong>{msg.sender}:</strong> <br />
-                <img src={msg.text} alt={`File: ${msg.fileName}`} style={styles.image} />
-                <div style={styles.fileName}>📁 {msg.fileName}</div>
-              </>
-            ) : (
-              <>
-                <strong>{msg.sender}:</strong> {msg.text}
-                {/* Render bot images if present */}
-                {msg.sender === 'Jib AI' && msg.images && msg.images.length > 0 && (
-                  <div style={styles.botImagesContainer}>
-                    <div style={styles.botImagesLabel}>📸 Related Images:</div>
-                    <div style={styles.botImagesGrid}>
+          <div
+            key={idx}
+            className={`flex ${msg.sender === 'User' ? 'justify-end' : 'justify-start'}`}
+          >
+            <div
+              className={`max-w-[80%] p-4 rounded-lg shadow-sm ${
+                msg.sender === 'User'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-800 border'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-semibold text-sm">
+                  {msg.sender === 'User' ? 'You' : selectedService.name}
+                </span>
+                <span className="text-xs opacity-70">{msg.timestamp}</span>
+              </div>
+              
+              {/* Main message text */}
+              <div className="whitespace-pre-wrap mb-2">{msg.text}</div>
+              
+              {/* Images (for JibAI/Dr Jib) */}
+              {msg.images && msg.images.length > 0 && (
+                <div className="mt-3">
+                  <div className="text-sm font-medium mb-2 text-gray-600">📸 Images:</div>
+                  <div className="grid grid-cols-2 gap-2">
                       {msg.images.map((imageUrl, imgIdx) => (
-                        <div key={imgIdx} style={styles.botImageItem}>
                           <img 
+                        key={imgIdx}
                             src={imageUrl} 
-                            alt={`Bot image ${imgIdx + 1}`} 
-                            style={styles.botImage}
-                            onError={(e) => {
-                              console.error(`Failed to load image: ${imageUrl}`);
-                              (e.target as HTMLImageElement).style.display = 'none';
-                            }}
-                          />
-                          <div style={styles.botImageCaption}>Image {imgIdx + 1}</div>
-                        </div>
+                        alt={`Response image ${imgIdx + 1}`}
+                        className="rounded-lg max-w-full h-auto border"
+                        loading="lazy"
+                      />
                       ))}
                     </div>
                   </div>
                 )}
-              </>
+              
+              {/* Recommended Prompts (for Web Agent) */}
+              {msg.recommendedPrompts && msg.recommendedPrompts.length > 0 && (
+                <div className="mt-3">
+                  <div className="text-sm font-medium mb-2 text-gray-600">💡 Try asking:</div>
+                  <div className="flex flex-wrap gap-2">
+                    {msg.recommendedPrompts.map((prompt, promptIdx) => (
+                      <button
+                        key={promptIdx}
+                        onClick={() => handleRecommendedPromptClick(prompt)}
+                        disabled={isLoading}
+                        className="bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs px-3 py-1 rounded-full border border-blue-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {prompt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Recommended URLs (for Web Agent) */}
+              {msg.recommendedUrls && msg.recommendedUrls.length > 0 && (
+                <div className="mt-3">
+                  <div className="text-sm font-medium mb-2 text-gray-600">🔗 Related packages:</div>
+                  <div className="space-y-2">
+                    {msg.recommendedUrls.map((urlInfo, urlIdx) => (
+                      <div key={urlIdx} className="bg-gray-50 p-3 rounded-lg border">
+                        <div className="flex items-center justify-between mb-1">
+                          <a
+                            href={urlInfo.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800 text-sm font-medium underline"
+                          >
+                            View Package →
+                          </a>
+                          <span className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded">
+                            {urlInfo.type}
+                          </span>
+                        </div>
+                        {urlInfo.branch_locations && urlInfo.branch_locations.length > 0 && (
+                          <div className="text-xs text-gray-600 mt-1">
+                            📍 {urlInfo.branch_locations[0].branch_name}
+                            {urlInfo.branch_locations.length > 1 && ` (+${urlInfo.branch_locations.length - 1} more)`}
+                          </div>
             )}
           </div>
         ))}
       </div>
-
-      <div className='w-full p-4 bg-white fixed bottom-0' style={{minHeight: '300px'}}>
-        {/* Image URLs Input */}
-        <div className='mb-3'>
-          <label className='block text-sm font-medium text-gray-700 mb-2'>
-            📸 Image URLs (one per line):
-          </label>
-          <textarea
-            value={imageUrls}
-            onChange={handleImageUrlsChange}
-            style={styles.textarea}
-            placeholder="https://example.com/image1.jpg&#10;https://example.com/image2.jpg&#10;..."
-            rows={2}
-          />
-        </div>
-
-        {/* Local File Upload */}
-        <div className='mb-3'>
-          <label className='block text-sm font-medium text-gray-700 mb-2'>
-            📁 Local Image Files:
-          </label>
-          <div className='flex gap-2 mb-2'>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept="image/*"
-              onChange={handleFileSelect}
-              style={styles.fileInput}
-            />
-            <button
-              onClick={clearLocalImages}
-              style={styles.clearButton}
-              disabled={localImages.length === 0}
-            >
-              Clear Files
-            </button>
-          </div>
-          
-          {localImages.length > 0 && (
-            <div className='text-sm text-gray-600 mb-2'>
-              📎 Selected: {localImages.map(img => img.file.name).join(', ')}
             </div>
           )}
-        </div>
-
-        {/* Combined Image Previews */}
-        {totalImages > 0 && (
-          <div className='mb-3'>
-            <div className='text-sm text-gray-600 mb-2'>
-              🔍 Total Images: {imagePreviewUrls.length} URLs + {localImages.length} Files = {totalImages}
+              
+              {/* Debug info - show raw response in development */}
+              {process.env.NODE_ENV === 'development' && msg.rawResponse && (
+                <details className="mt-3">
+                  <summary className="text-xs text-gray-500 cursor-pointer">🔍 Debug: Raw Response</summary>
+                  <pre className="text-xs bg-gray-100 p-2 rounded mt-1 overflow-auto">
+                    {JSON.stringify(msg.rawResponse, null, 2)}
+                  </pre>
+                </details>
+              )}
             </div>
-            <div style={styles.previewContainer}>
-              {/* URL Image Previews */}
-              {imagePreviewUrls.map((url, idx) => (
-                <div key={`url-${idx}`} style={styles.previewItem}>
-                  <img 
-                    src={url} 
-                    alt={`URL ${idx + 1}`} 
-                    style={styles.preview}
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                    }}
-                  />
-                  <div style={styles.previewLabel}>🌐 URL {idx + 1}</div>
                 </div>
               ))}
               
-              {/* Local File Previews */}
-              {localImages.map((localImage, idx) => (
-                <div key={`file-${idx}`} style={styles.previewItem}>
-                  <img 
-                    src={localImage.preview} 
-                    alt={localImage.file.name} 
-                    style={styles.preview}
-                  />
-                  <div style={styles.previewLabel}>📁 {localImage.file.name}</div>
-                  <button
-                    onClick={() => removeLocalImage(idx)}
-                    style={styles.removeButton}
-                  >
-                    ❌
-                  </button>
+        {isLoading && (
+          <div className="flex justify-start">
+            <div className="bg-white text-gray-800 border p-4 rounded-lg shadow-sm max-w-[70%]">
+              <div className="flex items-center space-x-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                <span>AI is thinking...</span>
                 </div>
-              ))}
             </div>
           </div>
         )}
+      </div>
 
-        {/* Text Query Input */}
-        <div className='mb-3'>
-          <label className='block text-sm font-medium text-gray-700 mb-2'>
-            💬 Text Query:
-          </label>
-          <div className='flex w-full'>
+      {/* Input */}
+      <div className="border-t bg-white p-4">
+        <div className="flex space-x-3">
             <input
               type="text"
               value={textQuery}
               onChange={(e) => setTextQuery(e.target.value)}
               onKeyDown={handleKeyDown}
-              style={styles.input}
-              placeholder="What do you see in these images?"
+            disabled={isLoading}
+            placeholder={`Type your message to ${selectedService.name}...`}
+            className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
             />
             <button 
               onClick={sendMessage} 
-              style={styles.button}
-              disabled={!textQuery.trim() && totalImages === 0}
+            disabled={!textQuery.trim() || isLoading}
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
             >
-              Send ({totalImages} 📸)
+            {isLoading ? 'Sending...' : 'Send'}
             </button>
           </div>
+        
+        <div className="mt-2 text-xs text-gray-500 text-center">
+          Endpoint: <code className="bg-gray-100 px-2 py-1 rounded">{selectedService.endpoint}</code>
         </div>
       </div>
     </div>
   );
-};
-
-// Styles
-const styles = {
-  container: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    justifyContent: 'center',
-    alignItems: 'center',
-    height: '100vh',
-    backgroundColor: '#1f2937',
-  },
-  chatBox: {
-    flex: 1,
-    width: '100%',
-    maxHeight: 'calc(100vh - 380px)', // Adjust for larger input area
-    overflowY: 'auto' as const,
-    padding: '20px',
-    backgroundColor: '#1f2937',
-    marginBottom: '20px',
-  },
-  userMessage: {
-    backgroundColor: '#0099ff',
-    color: 'white',
-    padding: '15px',
-    borderRadius: '10px',
-    marginBottom: '10px',
-    alignSelf: 'flex-end' as const,
-    maxWidth: '70%',
-    width: 'fit-content',
-    wordWrap: 'break-word' as const,
-    marginLeft: 'auto',
-    marginRight: '0',
-  },
-  llmMessage: {
-    backgroundColor: '#808080',
-    color: 'white',
-    padding: '15px',
-    borderRadius: '10px',
-    marginBottom: '10px',
-    alignSelf: 'flex-start' as const,
-    whiteSpace: 'pre-wrap' as const,
-    maxWidth: '70%',
-    width: 'fit-content',
-    wordWrap: 'break-word' as const,
-    marginLeft: '0', 
-    marginRight: 'auto',
-  },
-  textarea: {
-    width: '100%',
-    padding: '10px',
-    borderRadius: '5px',
-    border: '2px solid #ccc',
-    backgroundColor: '#f9f9f9',
-    fontFamily: 'monospace',
-    fontSize: '14px',
-    resize: 'vertical' as const,
-  },
-  input: {
-    flex: 1,
-    padding: '10px',
-    borderRadius: '5px',
-    border: '2px solid #ccc',
-    marginRight: '10px',
-    backgroundColor: '#f9f9f9',
-  },
-  button: {
-    padding: '10px 20px',
-    backgroundColor: '#0070f3',
-    color: 'white',
-    borderRadius: '5px',
-    border: 'none',
-    cursor: 'pointer',
-    minWidth: '120px',
-    fontWeight: 'bold' as const,
-  },
-  fileInput: {
-    padding: '8px',
-    borderRadius: '5px',
-    border: '2px solid #ccc',
-    backgroundColor: '#f9f9f9',
-    flex: 1,
-  },
-  clearButton: {
-    padding: '8px 15px',
-    backgroundColor: '#dc3545',
-    color: 'white',
-    borderRadius: '5px',
-    border: 'none',
-    cursor: 'pointer',
-  },
-  image: {
-    maxWidth: '100%',
-    maxHeight: '200px',
-    borderRadius: '10px',
-  },
-  fileName: {
-    fontSize: '12px',
-    color: '#ccc',
-    marginTop: '5px',
-  },
-  previewContainer: {
-    display: 'flex',
-    gap: '10px',
-    flexWrap: 'wrap' as const,
-    maxHeight: '120px',
-    overflowY: 'auto' as const,
-  },
-  previewItem: {
-    position: 'relative' as const,
-    display: 'flex',
-    flexDirection: 'column' as const,
-    alignItems: 'center',
-  },
-  preview: {
-    width: '60px',
-    height: '60px',
-    objectFit: 'cover' as const,
-    borderRadius: '5px',
-    border: '1px solid #ddd',
-  },
-  previewLabel: {
-    fontSize: '10px',
-    color: '#666',
-    marginTop: '2px',
-    textAlign: 'center' as const,
-    maxWidth: '60px',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap' as const,
-  },
-  removeButton: {
-    position: 'absolute' as const,
-    top: '-5px',
-    right: '-5px',
-    background: 'red',
-    color: 'white',
-    border: 'none',
-    borderRadius: '50%',
-    width: '20px',
-    height: '20px',
-    fontSize: '10px',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  clearChatButton: {
-    padding: '5px 10px',
-    backgroundColor: '#6c757d',
-    color: 'white',
-    borderRadius: '5px',
-    border: 'none',
-    cursor: 'pointer',
-    fontSize: '12px',
-  },
-  botImagesContainer: {
-    marginTop: '15px',
-    padding: '10px',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: '8px',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
-  },
-  botImagesLabel: {
-    fontSize: '14px',
-    fontWeight: 'bold' as const,
-    marginBottom: '10px',
-    color: '#fff',
-  },
-  botImagesGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-    gap: '10px',
-  },
-  botImageItem: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: '6px',
-    padding: '8px',
-  },
-  botImage: {
-    width: '100%',
-    maxWidth: '200px',
-    height: 'auto',
-    maxHeight: '150px',
-    objectFit: 'contain' as const,
-    borderRadius: '6px',
-    border: '1px solid rgba(255, 255, 255, 0.3)',
-  },
-  botImageCaption: {
-    fontSize: '12px',
-    color: '#ccc',
-    marginTop: '5px',
-    textAlign: 'center' as const,
-  },
 };
 
 export default Chat;

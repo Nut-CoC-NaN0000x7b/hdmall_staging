@@ -19,11 +19,12 @@ from globals import global_storage
 import asyncio
 import uvloop  # For better async performance
 
-DEVICE = "azure"
+
 
 load_dotenv()
 CONNECTION_STRING = os.getenv('CONNECTION_STRING')
 CONTAINER_NAME = os.getenv('CONTAINER_NAME')
+DEVICE = os.getenv('DEVICE')
 
 def load_from_azure_blob(connection_string, container_name, blob_path):
     """
@@ -100,40 +101,40 @@ async def lifespan(app: fastapi.FastAPI) -> AsyncGenerator[None, None]:
     # Load files locally
     if DEVICE == 'local':
         #knowledge base
-        knowledge_base = pd.read_csv("src/data/package.csv")
+        knowledge_base = pd.read_csv("shared/rag/data/package.csv")
         #doc json
-        with open("src/data/doc_tokens_19112024.json", "r") as f:
+        with open("shared/rag/data/doc_tokens_19112024.json", "r") as f:
             doc_json = json.load(f)
         #embed matrix
-        embed_matrix = np.load("src/data/embed_matrix_19112024.npy")
-        index_list = np.load("src/data/index_list.npy", allow_pickle=True)
+        embed_matrix = np.load("shared/rag/data/embed_matrix_19112024.npy")
+        index_list = np.load("shared/rag/data/index_list.npy", allow_pickle=True)
     
         #doc json plus
-        with open("src/data/doc_tokens_19112024_plus.json", "r") as f:
+        with open("shared/rag/data/doc_tokens_19112024_plus.json", "r") as f:
             doc_json_plus = json.load(f)
         #   embed matrix plus
-        embed_matrix_plus = np.load("src/data/emb_matrix_plus.npy")
-        index_list_plus = np.load("src/data/index_list_plus.npy", allow_pickle=True)
+        embed_matrix_plus = np.load("shared/rag/data/emb_matrix_plus.npy")
+        index_list_plus = np.load("shared/rag/data/index_list_plus.npy", allow_pickle=True)
 
         #Web recommendation
-        with open("src/data/web_recommendation.json", "r") as f:
+        with open("shared/rag/data/web_recommendation.json", "r") as f:
             web_recommendation_json = json.load(f)
         #hl_embeddings_matrix named hl_emb.npy
-        hl_embed = np.load("src/data/hl_emb.npy")
-        with open("src/data/hl_docs.json", "r") as f:
+        hl_embed = np.load("shared/rag/data/hl_emb.npy")
+        with open("shared/rag/data/hl_docs.json", "r") as f:
             hl_docs = json.load(f)
         #brand_embed named brand_emb.npy
-        brand_embed = np.load("src/data/brand_emb.npy")
-        with open("src/data/brand_docs.json", "r") as f:
+        brand_embed = np.load("shared/rag/data/brand_emb.npy")
+        with open("shared/rag/data/brand_docs.json", "r") as f:
             brand_docs = json.load(f)
         #category_embed named cat_emb.npy
-        cat_embed = np.load("src/data/cat_emb.npy")
-        with open("src/data/cat_docs.json", "r") as f:
+        cat_embed = np.load("shared/rag/data/cat_emb.npy")
+        with open("shared/rag/data/cat_docs.json", "r") as f:
             cat_docs = json.load(f)
         #tag_embed named tag_emb.npy
-        with open("src/data/tag_docs.json", "r") as f:
+        with open("shared/rag/data/tag_docs.json", "r") as f:
             tag_docs = json.load(f)
-        tag_embed = np.load("src/data/tag_emb.npy")
+        tag_embed = np.load("shared/rag/data/tag_emb.npy")
 
 
 
