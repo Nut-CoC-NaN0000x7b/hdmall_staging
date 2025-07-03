@@ -6,7 +6,7 @@ from services.ads_handler.ads_agent import AdsAgent
 from services.jib_ai.jib_ai_bot import JibAI  # Main Sonnet 4 service
 from services.dr_jib.dr_jib_service import DrJib  # Medical RAG service
 from services.web_agent.web_agent_gpt import GPTBot  # Web intelligence
-from services.summarization.summarization_core import p_forward
+#TODO import summarization bot
 from services.summarization.summarization_service import process_slack_event
 from services.co_pilot.co_pilot_service import co_pilot_run
 from fastapi import FastAPI, APIRouter, HTTPException, BackgroundTasks
@@ -100,7 +100,7 @@ async def health_check():
     return {
         "status": "healthy",
         "architecture": "Jib's Brain v1.0",
-        "services": ["jib_ai", "dr_jib", "summarization", "co_pilot", "web_agent", "ads_handler"],
+        "services": ["jib_ai", "dr_jib", "web_agent", "co_pilot", "ads_handler", "summarization"],
         "components": ["shared_rag", "shared_tools", "shared_utils", "shared_models"]
     }
 
@@ -439,6 +439,46 @@ async def co_pilot_handler(request: CoPilotRequest):
 async def co_pilot_health_check():
     """Health check endpoint for co-pilot service."""
     return {"status": "healthy", "service": "co_pilot"}
+
+# =============================================================================
+# ADS HANDLER SERVICE ENDPOINTS
+# =============================================================================
+
+@router.post("/ads_handler/chat")
+async def ads_handler_chat_handler(ads_request: AdsRequest):
+    """Generate contextual ads based on conversation thread."""
+    try:
+        thread_name = ads_request.thread_name
+        conversation = ads_request.conversation
+        
+        print(f"🎯 Ads Handler request for thread: {thread_name}")
+        print(f"🎯 Conversation has {len(conversation)} messages")
+        
+        start_time = time.time()
+        
+        # Get ads agent instance
+        ads_agent = get_ads_agent_instance()
+        
+        # Prepare request data
+        request_data = {
+            "thread_name": thread_name,
+            "conversation": conversation
+        }
+        
+        # Generate contextual ads
+        ads_result = await ads_agent.forward(request_data)
+        logger.info(f"Ads result: {ads_result}")
+        
+        end_time = time.time()
+        print(f"🎯 Ads Handler response time: {end_time - start_time:.2f} seconds")
+        print(f"🎯 Generated {len(ads_result) if ads_result else 0} contextual ads")
+        
+        # Return ads_result directly for production compatibility
+        return ads_result if ads_result else []
+        
+    except Exception as e:
+        logger.error(f"Error in ads handler: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Ads handler error: {str(e)}")
 
 @router.get("/ads_handler/health")
 async def ads_handler_health_check():

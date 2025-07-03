@@ -13,15 +13,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Note: Redis and other dependencies might need to be added based on actual usage
-try:
-    import redis
-    redis_host = os.environ.get("REDISHOST", "localhost")
-    redis_port = int(os.environ.get("REDISPORT", 6379))
-    redis_client = redis.Redis(host=redis_host, port=redis_port)
-except ImportError:
-    logger.warning("Redis not available - some features may not work")
-    redis_client = None
+
 
 # Import actual functions from the new files
 try:
@@ -33,7 +25,7 @@ except ImportError:
         return "Parsed content placeholder"
 
 try:
-    from .p_p import p_forward
+    from .content_agent import p_forward
     logger.info("Successfully imported p_p")
 except ImportError:
     logger.warning("p_forward not found - will use placeholder")
@@ -66,21 +58,7 @@ def process_slack_event(event):
             
             try:
                 response = asyncio.run(p_forward(message, scraped_content))
-                logger.info("Successfully processed message with LLM")
-                
-                script = response.script
-                final_text_response = ""
-                for s in script:
-                    final_text_response += "สรุปเนื้อหาของบทความนี้! : " + s.summarized_content + "\n\n\n\n"
-                    final_text_response += "สคริปจ้า!! : " + s.script + "\n\n\n\n\n\n\n"
-                if final_text_response == "":
-                    final_text_response = "บอทไม่ได้สรุปและสร้างสคริปให้ นี้คือความคิดของบอท :"
-                    for s in script:
-                        final_text_response += s.thinking_for_content + "\n\n"
-                        final_text_response += s.thinking_for_script + "\n\n"
-                logger.info("Sending response to Slack")
-                logger.info(f"Final response: {final_text_response}")
-                send_slack_message(channel, final_text_response, ts)
+                send_slack_message(channel, response, ts)
             except Exception as e:
                 logger.error(f"Error processing message with LLM: {str(e)}", exc_info=True)
                 send_slack_message(channel, "ขออภัยครับ เกิดข้อผิดพลาดในการประมวลผล กรุณาลองใหม่อีกครั้ง", ts)

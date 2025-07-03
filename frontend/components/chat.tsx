@@ -59,6 +59,13 @@ const services: Service[] = [
     emoji: '🤖'
   },
   {
+    id: 'ads_handler',
+    name: 'Ads Handler (Contextual)',
+    endpoint: '/ads_handler/chat',
+    description: 'Contextual advertisement recommendations',
+    emoji: '🎯'
+  },
+  {
     id: 'summarization',
     name: 'Summarization (Slack)',
     endpoint: '/summarization/slack',
@@ -72,17 +79,27 @@ const Chat: React.FC = () => {
   const [textQuery, setTextQuery] = useState<string>('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  
+  // Ads Handler specific state
+  const [threadName, setThreadName] = useState<string>('');
+  const [conversationText, setConversationText] = useState<string>('');
 
   const handleServiceSelect = (service: Service) => {
     setSelectedService(service);
     setMessages([]);
     setTextQuery('');
+    // Clear ads handler specific state
+    setThreadName('');
+    setConversationText('');
   };
 
   const goBackToMenu = () => {
     setSelectedService(null);
     setMessages([]);
     setTextQuery('');
+    // Clear ads handler specific state
+    setThreadName('');
+    setConversationText('');
   };
 
   const formatMessageForAPI = (text: string, service: Service) => {
@@ -109,6 +126,21 @@ const Chat: React.FC = () => {
       case 'co_pilot':
             return {
           messages: [
+            ...messages.map(msg => ({
+              role: msg.sender === 'User' ? 'user' : 'assistant',
+              content: msg.text
+            })),
+            {
+              role: 'user',
+              content: text
+            }
+          ]
+        };
+      
+      case 'ads_handler':
+        return {
+          thread_name: `chat_${timestamp}`,
+          conversation: [
             ...messages.map(msg => ({
               role: msg.sender === 'User' ? 'user' : 'assistant',
               content: msg.text
@@ -163,6 +195,27 @@ const Chat: React.FC = () => {
         // Co-pilot returns: {response}
         return {
           text: responseData.response || responseData || 'No response received',
+          rawResponse: responseData
+        };
+      
+      case 'ads_handler':
+        // Ads handler returns: Array of products directly
+        const ads = Array.isArray(responseData) ? responseData : [];
+        const adsText = ads.length > 0 
+          ? `🎯 Found ${ads.length} contextual ads:\n\n` +
+            ads.map((ad: any, index: number) => 
+              `${index + 1}. ${ad.product_name}\n   💰 ฿${ad.product_cash_price?.toLocaleString() || 'N/A'}\n   🔗 ${ad.product_url}\n`
+            ).join('\n')
+          : `🎯 No contextual ads found`;
+        
+        // Extract product images for display
+        const productImages = ads
+          .filter((ad: any) => ad.product_image_url)
+          .map((ad: any) => ad.product_image_url);
+        
+        return {
+          text: adsText,
+          images: productImages.length > 0 ? productImages : undefined,
           rawResponse: responseData
         };
       
@@ -234,6 +287,81 @@ const Chat: React.FC = () => {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !isLoading) {
       sendMessage();
+    }
+  };
+
+  const parseConversationText = (text: string): Array<{role: string, content: string}> => {
+    const lines = text.trim().split('\n');
+    const conversation: Array<{role: string, content: string}> = [];
+    
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+      if (!trimmedLine) continue;
+      
+      if (trimmedLine.startsWith('User:')) {
+        conversation.push({
+          role: 'user',
+          content: trimmedLine.replace('User:', '').trim()
+        });
+      } else if (trimmedLine.startsWith('Assistant:')) {
+        conversation.push({
+          role: 'assistant',
+          content: trimmedLine.replace('Assistant:', '').trim()
+        });
+      }
+    }
+    
+    return conversation;
+  };
+
+  const generateAdsFromConversation = async () => {
+    if (!threadName.trim() || !conversationText.trim() || isLoading) return;
+
+    const userMessage: Message = {
+      sender: 'User',
+      text: `Thread: ${threadName}\n\nConversation:\n${conversationText}`,
+      timestamp: new Date().toLocaleTimeString()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setIsLoading(true);
+
+    try {
+      // Parse the natural conversation text to JSON format
+      const parsedConversation = parseConversationText(conversationText);
+      
+      const payload = {
+        thread_name: threadName,
+        conversation: parsedConversation
+      };
+
+      const response = await axios.post(`http://127.0.0.1:8000/ads_handler/chat`, payload);
+      
+      // Parse response
+      const parsedResponse = parseServiceResponse(response.data, { id: 'ads_handler' } as Service);
+      
+      const botMessage: Message = {
+        sender: 'AI',
+        text: parsedResponse.text,
+        timestamp: new Date().toLocaleTimeString(),
+        rawResponse: parsedResponse.rawResponse
+      };
+
+      setMessages(prev => [...prev, botMessage]);
+      
+      // Clear the form
+      setThreadName('');
+      setConversationText('');
+    } catch (error) {
+      console.error('Error generating ads', error);
+      const errorMessage: Message = {
+        sender: 'AI',
+        text: `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`,
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -324,6 +452,150 @@ const Chat: React.FC = () => {
     );
   }
 
+  // Special UI for Ads Handler
+  if (selectedService.id === 'ads_handler') {
+    return (
+      <div className="flex flex-col h-screen bg-white">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-orange-600 to-red-600 text-white p-4 shadow-lg">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={goBackToMenu}
+              className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg transition-colors"
+            >
+              <span>←</span>
+              <span>Back to Menu</span>
+            </button>
+            
+            <div className="text-center">
+              <h1 className="text-xl font-bold">
+                🎯 Ads Handler - Custom Testing UI
+              </h1>
+              <p className="text-sm opacity-90">Generate contextual ads from conversation threads</p>
+              <p className="text-xs opacity-75 mt-1">
+                💡 Enter thread name & conversation - JSON conversion handled automatically
+              </p>
+            </div>
+            
+            <button 
+              onClick={() => setMessages([])}
+              className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg transition-colors"
+            >
+              🗑️ Clear
+            </button>
+          </div>
+        </div>
+
+        {/* Custom Ads Handler Input */}
+        <div className="flex-1 p-6 bg-gray-50 overflow-y-auto">
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Thread Name Input */}
+            <div className="bg-white rounded-lg shadow-sm p-4 border">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                🏷️ Thread Name
+              </label>
+              <input
+                type="text"
+                value={threadName}
+                onChange={(e) => setThreadName(e.target.value)}
+                placeholder="e.g., health_checkup_bangkok_2024"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                💡 Give your conversation thread a descriptive name
+              </p>
+            </div>
+
+            {/* Conversation Input */}
+            <div className="bg-white rounded-lg shadow-sm p-4 border">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                💬 Conversation (Natural Format)
+              </label>
+              <textarea
+                value={conversationText}
+                onChange={(e) => setConversationText(e.target.value)}
+                placeholder={`Enter conversation naturally, like this:
+
+User: I need a health checkup in Bangkok
+Assistant: What type of checkup are you looking for?
+User: Full body checkup, budget around 5000 baht
+Assistant: I can help you find packages in that range
+User: Show me options near BTS stations`}
+                className="w-full h-64 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent font-mono text-sm"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                💡 Type conversation naturally - we'll convert it to JSON format automatically
+              </p>
+            </div>
+
+            {/* Generate Ads Button */}
+            <div className="text-center">
+              <button
+                onClick={generateAdsFromConversation}
+                disabled={!threadName.trim() || !conversationText.trim() || isLoading}
+                className="bg-orange-600 hover:bg-orange-700 text-white px-8 py-3 rounded-lg font-medium transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                {isLoading ? '🔄 Generating Ads...' : '🎯 Generate Contextual Ads'}
+              </button>
+            </div>
+
+            {/* Results */}
+            {messages.length > 0 && (
+              <div className="bg-white rounded-lg shadow-sm p-4 border">
+                <h3 className="font-medium text-gray-700 mb-3">🎯 Generated Ads:</h3>
+                <div className="space-y-3">
+                  {messages.map((msg, idx) => (
+                    <div key={idx} className={`p-3 rounded-lg ${msg.sender === 'User' ? 'bg-blue-50 border-l-4 border-blue-400' : 'bg-gray-50 border-l-4 border-orange-400'}`}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-medium text-sm text-gray-600">
+                          {msg.sender === 'User' ? '📤 Request' : '🎯 Ads Result'}
+                        </span>
+                        <span className="text-xs text-gray-500">{msg.timestamp}</span>
+                      </div>
+                      <div className="whitespace-pre-wrap text-sm mb-3">{msg.text}</div>
+                      
+                      {/* Product Images */}
+                      {msg.images && msg.images.length > 0 && (
+                        <div className="mt-3">
+                          <div className="text-sm font-medium mb-2 text-gray-600">📸 Product Images:</div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {msg.images.map((imageUrl, imgIdx) => (
+                              <div key={imgIdx} className="bg-white rounded-lg border overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                                <img 
+                                  src={imageUrl} 
+                                  alt={`Product ${imgIdx + 1}`}
+                                  className="w-full h-32 object-cover"
+                                  loading="lazy"
+                                />
+                                <div className="p-2">
+                                  <p className="text-xs text-gray-500">Product {imgIdx + 1}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Debug info */}
+                      {msg.rawResponse && (
+                        <details className="mt-3">
+                          <summary className="text-xs text-gray-500 cursor-pointer">🔍 Debug: API Response</summary>
+                          <pre className="text-xs bg-gray-100 p-2 rounded mt-1 overflow-auto max-h-40">
+                            {JSON.stringify(msg.rawResponse, null, 2)}
+                          </pre>
+                        </details>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Chat Interface Screen
   return (
     <div className="flex flex-col h-screen bg-white">
@@ -349,6 +621,7 @@ const Chat: React.FC = () => {
               {selectedService.id === 'dr_jib' && '🏥 Medical & 📸 Images'}
               {selectedService.id === 'co_pilot' && '🤖 Assistant & 💬 Chat'}
               {selectedService.id === 'summarization' && '📝 Summaries & 📊 Analysis'}
+              {selectedService.id === 'ads_handler' && '🎯 Contextual Ads & 💬 Thread Based'}
             </p>
           </div>
           

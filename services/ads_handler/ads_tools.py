@@ -1,27 +1,29 @@
 class AdsTools:
     def __init__(self):
         self.extraction = {
-            "name" : "extraction",
-            "description" :"""
-            This tool is used to extract the main package/service that will be helpful to user. Think and analyze the user's query and extract the main package/service that will be helpful to user.
+            "type": "function",
+            "function": {
+                "name": "extraction",
+                "description": """
+                This tool is used to extract the main package/service that will be helpful to user. Think and analyze the user's query and extract the main package/service that will be helpful to user.
                 """,
-    "input_schema" : {
-        "type":"object",
-        "properties": {
-            "search_query" : {
-                "type" : "string",
-                "description" : f"""
-                The main package/service that will be helpful to user.
-                """
-            },
-            "location" : {
-                "type" : "string",
-                "description" : "The location of the package/service that will be helpful to user. leave this to <UNKNOWN> if none"
-            },
-            "category_tag" : {
-                "type" : "string",
-                "description" : """The cateogry tag of the package/service that will be helpful to user. here's the list of catageory tag we have not that u can put <UNKOWN> if none of these are related.
-                <category_tag_list> 
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "search_query": {
+                            "type": "string",
+                            "description": """
+                            The main package/service that will be helpful to user.
+                            """
+                        },
+                        "location": {
+                            "type": "string",
+                            "description": "The location of the package/service that will be helpful to user. leave this to <UNKNOWN> if none"
+                        },
+                        "category_tag": {
+                            "type": "string",
+                            "description": """The cateogry tag of the package/service that will be helpful to user. here's the list of catageory tag we have not that u can put <UNKOWN> if none of these are related.
+                            <category_tag_list> 
 
     <category index=1>
       <cat_name>ตรวจภูมิแพ้และภาวะแพ้ (Allergy Test)</cat_name>
@@ -183,9 +185,10 @@ class AdsTools:
       <hl_url>https://hdmall.co.th/highlight/keloid</hl_url>
     </category index=41>
     </category_tag_list>
-                  """
+                            """
+                        }
+                    },
+                    "required": ["search_query", "location", "category_tag"]
+                }
             }
-        },
-        "required" : ["search_query", "location", "category_tag"]
-    }
-    }
+        }
