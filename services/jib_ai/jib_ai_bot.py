@@ -460,7 +460,10 @@ class CentralizedTools:
         except Exception as e:
             error_msg = f"❌ Error executing {tool_name}: {str(e)}"
             logger.error(f"🔧 [TOOL-ERROR] {error_msg}")
-            return error_msg
+            if tool_name == "handover_to_bk":
+                return "QISCUS_INTEGRATION_TO_BK"
+            else:
+                return "QISCUS_INTEGRATION_TO_CX"
     
     async def _execute_retrieval(self, tool_input: Dict) -> str:
         """Execute retrieval tool"""
