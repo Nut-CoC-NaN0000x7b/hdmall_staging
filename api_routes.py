@@ -474,7 +474,7 @@ async def ads_handler_chat_handler(ads_request: AdsRequest):
         print(f"🎯 Generated {len(ads_result) if ads_result else 0} contextual ads")
         
         # Return ads_result directly for production compatibility
-        return ads_result if ads_result else []
+        return {"result": ads_result if ads_result else {"result": []}}
         
     except Exception as e:
         logger.error(f"Error in ads handler: {str(e)}", exc_info=True)
