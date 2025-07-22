@@ -354,7 +354,7 @@ async def web_agent_chat_handler(chat_request: ChatRequest):
     print(f"Web agent response time: {end_time - start_time:.2f} seconds")
 
     # Web agent returns dict directly with response, recommended_prompts_for_users, recommended_urls
-    return chat_resp
+    return {'text':str(chat_resp), 'images':[]}
 
 @router.post("/web_agent/search")
 async def web_search_handler(search_request: SearchRequest):
