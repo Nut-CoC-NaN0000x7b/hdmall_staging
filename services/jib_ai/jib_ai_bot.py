@@ -736,10 +736,10 @@ class JibAI:
     Drop-in replacement for the existing JibAI class
     """
     
-    def __init__(self, global_storage):
+    def __init__(self, global_storage, device):
         """Initialize with global storage like the original JibAI"""
         self.global_storage = global_storage
-        
+        self.device = device
         # Fix missing attributes in global_storage FIRST
         self._fix_global_storage_attributes(global_storage)
         
@@ -762,7 +762,7 @@ class JibAI:
         self.centralized_tools = CentralizedTools(self.rag)
         
         # System prompts for Thai context - Load from the new file
-        self.system_prompt = self._load_system_prompt()
+        self.system_prompt = self._load_system_prompt(device)
         
         logger.info("🚀 Sonnet 4 JibAI initialized with centralized tools and interleaved thinking")
     
@@ -778,10 +778,17 @@ class JibAI:
                 setattr(global_storage, attr, None)
                 logger.info(f"Added missing attribute: {attr}")
     
-    def _load_system_prompt(self):
+    def _load_system_prompt(self, device='social'):
         """Load system prompt from the interpret.txt file"""
+        if device == 'social':
+            prompt_file = 'services/jib_ai/prompts/interpret.txt'
+        elif device == 'app':
+            prompt_file = 'services/jib_ai/prompts/interpret_app.txt'
+        else:
+            prompt_file = 'services/jib_ai/prompts/interpret.txt'
+            
         try:
-            with open('services/jib_ai/prompts/interpret.txt', 'r', encoding='utf-8') as f:
+            with open(prompt_file, 'r', encoding='utf-8') as f:
                 prompt_template = f.read()
             
             # The interpret.txt template uses placeholders that will be replaced at runtime

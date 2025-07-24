@@ -214,13 +214,14 @@ async def ads_handler(ads_request: AdsRequest):
 async def jib_ai_chat_handler(chat_request: ChatRequest):
     """Main JibAI conversation service with advanced RAG."""
     room_id = chat_request.room_id
+    device = chat_request.device if chat_request.device else 'social'
     print(f"JibAI chat request for room: {room_id}")
     
     start_time = time.time()
     messages = [message.model_dump() for message in chat_request.messages]
     last_query = str(messages[-1])
     
-    bot = JibAI(global_storage)
+    bot = JibAI(global_storage, device)
     raw_response = await bot.forward(messages, room_id, last_query)
     chat_resp, token_dict, thought_dict = raw_response
     
