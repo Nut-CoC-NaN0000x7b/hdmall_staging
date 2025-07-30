@@ -260,6 +260,11 @@ async def jib_ai_chat_handler(chat_request: ChatRequest):
             return extended_url
 
     if device == 'app':
+        updated_out = remove_markdown_elements(out)
+        try:
+            chat_resp['text'] = updated_out
+        except:
+            chat_resp = updated_out
         return chat_resp
     else:
         # Process URLs and clean markdown
