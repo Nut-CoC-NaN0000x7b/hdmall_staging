@@ -42,8 +42,9 @@ class Message(BaseModel):
 class ChatRequest(BaseModel):
     messages: List[Message]
     context: Dict = {}
-    #room_id: str 
-    room_id: str = "264062881"
+    room_id: str
+    device: str  
+
 class ThoughtStep(BaseModel):
     title: str
     description: Any

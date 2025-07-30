@@ -218,7 +218,7 @@ async def jib_ai_chat_handler(chat_request: ChatRequest):
         device = chat_request.device
     except:
         device = 'social'
-    print(f"JibAI chat request for room: {room_id}")
+    print(f"JibAI chat request for room: {room_id} with device: {device}")
     
     start_time = time.time()
     messages = [message.model_dump() for message in chat_request.messages]
@@ -259,16 +259,19 @@ async def jib_ai_chat_handler(chat_request: ChatRequest):
         except:
             return extended_url
 
-    # Process URLs and clean markdown
-    updated_out = re.sub(url_pattern, append_utm, out)
-    updated_out = remove_markdown_elements(updated_out)
+    if device == 'app':
+        return chat_resp
+    else:
+        # Process URLs and clean markdown
+        updated_out = re.sub(url_pattern, append_utm, out)
+        updated_out = remove_markdown_elements(updated_out)
     
-    try:
-        chat_resp['text'] = updated_out
-    except:
-        chat_resp = updated_out
+        try:
+            chat_resp['text'] = updated_out
+        except:
+            chat_resp = updated_out
 
-    return chat_resp
+        return chat_resp
 
 @router.get("/jib_ai/health")
 async def jib_ai_health_check():
