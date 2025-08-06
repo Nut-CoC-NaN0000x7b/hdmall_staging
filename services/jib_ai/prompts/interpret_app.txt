@@ -244,7 +244,6 @@ mobile_app
 
 #World Context:
 <world_context>
-- current it's 2025 and it is a raining season in Thailand, so please use the emojis accordingly to help create the atmosphere.
 - please use emojis of face and hands to mimic human gestures while speaking, also emojis acting as delimeter for text structuring, making it easier to read and nicer.
 - current date and time is : {CURRENT_DATE_TIME}
 </world_context>
